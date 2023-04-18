@@ -1,48 +1,39 @@
-# https://youtu.be/VzIO5_R9XEM
-# https://youtu.be/2MSGnkir9ew
 """
 cycleGAN model
 
 Based on the code by Jason Brownlee from his blogs on https://machinelearningmastery.com/
-I am adapting his code to various applications but original credit goes to Jason. 
+We have adapted his code to various applications but original credit goes to Jason. 
 
-The model uses instance normalization layer:
-Normalize the activations of the previous layer at each step,
-i.e. applies a transformation that maintains the mean activation
-close to 0 and the activation standard deviation close to 1.
-Standardizes values on each output feature map rather than across features in a batch. ​
-
+The model uses instance normalization layer.
 Download instance normalization code from here: https://github.com/keras-team/keras-contrib/blob/master/keras_contrib/layers/normalization/instancenormalization.py
-Or install keras_contrib using guidelines here: https://github.com/keras-team/keras-contrib 
+and place your folder.
 """
 
-#
+## Libraries
 from random import random
 from numpy import load
 from numpy import zeros
 from numpy import ones
 from numpy import asarray
 from numpy.random import randint
-from keras.optimizers import Adam
-from keras.initializers import RandomNormal
-from keras.models import Model
-from keras.models import Input
-from keras.layers import Conv2D
-from keras.layers import Conv2DTranspose
-from keras.layers import LeakyReLU
-from keras.layers import Activation
-from keras.layers import Concatenate
-#from keras_contrib.layers.normalization.instancenormalization import InstanceNormalization
-
-#Download instance norm. code from the link above.
-#Or install keras_contrib using guidelines here: https://github.com/keras-team/keras-contrib 
+import tensorflow as tf
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.initializers import RandomNormal
+from tensorflow.keras.models import Model
+from tensorflow.keras import Input
+from tensorflow.keras.layers import Conv2D
+from tensorflow.keras.layers import Conv2DTranspose
+from tensorflow.keras.layers import LeakyReLU
+from tensorflow.keras.layers import Activation
+from tensorflow.keras.layers import Concatenate
 from instancenormalization import InstanceNormalization  
 
 from matplotlib import pyplot
 
-# discriminator model (70x70 patchGAN)
+# Defining Discriminator Model here ---->
+# discriminator model (As per paper adopted from 70x70 patchGAN definition)
 # C64-C128-C256-C512
-#After the last layer, conv to 1-dimensional output, followed by a Sigmoid function.  
+# After the last layer, conv to 1-dimensional output, followed by a Sigmoid function.  
 # The “axis” argument is set to -1 for instance norm. to ensure that features are normalized per feature map.
 def define_discriminator(image_shape):
 	# weight initialization
@@ -74,14 +65,13 @@ def define_discriminator(image_shape):
 	# define model
 	model = Model(in_image, patch_out)
 	# compile model
-    #The model is trained with a batch size of one image and Adam opt. 
-    #with a small learning rate and 0.5 beta. 
-    #The loss for the discriminator is weighted by 50% for each model update.
-    #This slows down changes to the discriminator relative to the generator model during training.
-	model.compile(loss='mse', optimizer=Adam(lr=0.0002, beta_1=0.5), loss_weights=[0.5])
+    # The model is trained with a batch size of one image and Adam optimizer with a small learning rate and 0.5 beta. 
+    # The loss for the discriminator is weighted by 50% for each model update.
+    # This slows down changes to the discriminator relative to the generator model during training.
+	model.compile(loss='mse', optimizer=Adam(learning_rate=0.0002, beta_1=0.5), loss_weights=[0.5])
 	return model
 
-# generator a resnet block to be used in the generator
+# Generator is based on a resnet block
 # residual block that contains two 3 × 3 convolutional layers with the same number of filters on both layers.
 def resnet_block(n_filters, input_layer):
 	# weight initialization
@@ -97,18 +87,15 @@ def resnet_block(n_filters, input_layer):
 	g = Concatenate()([g, input_layer])
 	return g
 
-# define the  generator model - encoder-decoder type architecture
+# Defining the generator model - encoder-decoder type architecture
 
-#c7s1-k denote a 7×7 Convolution-InstanceNorm-ReLU layer with k filters and stride 1. 
-#dk denotes a 3 × 3 Convolution-InstanceNorm-ReLU layer with k filters and stride 2.
+# c7s1-k denote a 7×7 Convolution-InstanceNorm-ReLU layer with k filters and stride 1. 
+# dk denotes a 3 × 3 Convolution-InstanceNorm-ReLU layer with k filters and stride 2.
 # Rk denotes a residual block that contains two 3 × 3 convolutional layers
 # uk denotes a 3 × 3 fractional-strided-Convolution InstanceNorm-ReLU layer with k filters and stride 1/2
 
-#The network with 6 residual blocks consists of:
-#c7s1-64,d128,d256,R256,R256,R256,R256,R256,R256,u128,u64,c7s1-3
-
-#The network with 9 residual blocks consists of:
-#c7s1-64,d128,d256,R256,R256,R256,R256,R256,R256,R256,R256,R256,u128, u64,c7s1-3
+# The network architecture for 9 residual blocks is : (There is also option to use a 6 residual blocks architecture)
+# c7s1-64,d128,d256,R256,R256,R256,R256,R256,R256,R256,R256,R256,u128, u64,c7s1-3
 
 def define_generator(image_shape, n_resnet=9):
 	# weight initialization
@@ -147,12 +134,10 @@ def define_generator(image_shape, n_resnet=9):
 	return model
 
 # define a composite model for updating generators by adversarial and cycle loss
-#We define a composite model that will be used to train each generator separately. 
+# We define a composite model that will be used to train each generator separately. 
 def define_composite_model(g_model_1, d_model, g_model_2, image_shape):
-	# Make the generator of interest trainable as we will be updating these weights.
-    #by keeping other models constant.
-    #Remember that we use this same function to train both generators,
-    #one generator at a time. 
+	# Make the generator of interest trainable as we will be updating these weights by keeping other models constant.
+    # Remember that we use this same function to train both generators, one generator at a time while keeping the other networks stable.
 	g_model_1.trainable = True
 	# mark discriminator and second generator as non-trainable
 	d_model.trainable = False
@@ -175,7 +160,7 @@ def define_composite_model(g_model_1, d_model, g_model_2, image_shape):
 	model = Model([input_gen, input_id], [output_d, output_id, output_f, output_b])
 	
     # define the optimizer
-	opt = Adam(lr=0.0002, beta_1=0.5)
+	opt = Adam(learning_rate=0.0002, beta_1=0.5)
 	# compile model with weighting of least squares loss and L1 loss
 	model.compile(loss=['mse', 'mae', 'mae', 'mae'], 
                loss_weights=[1, 5, 10, 10], optimizer=opt)
@@ -193,7 +178,7 @@ def load_real_samples(filename):
 	return [X1, X2]
 
 # select a batch of random samples, returns images and target
-#Remember that for real images the label (y) is 1. 
+# Remember that for real images the label (y) is 1. 
 def generate_real_samples(dataset, n_samples, patch_shape):
 	# choose random instances
 	ix = randint(0, dataset.shape[0], n_samples)
@@ -204,7 +189,7 @@ def generate_real_samples(dataset, n_samples, patch_shape):
 	return X, y
 
 # generate a batch of images, returns images and targets
-#Remember that for fake images the label (y) is 0. 
+# Remember that for fake images the label (y) is 0. 
 def generate_fake_samples(g_model, dataset, patch_shape):
 	# generate fake images
 	X = g_model.predict(dataset)
@@ -247,10 +232,8 @@ def summarize_performance(step, g_model, trainX, name, n_samples=5):
 	pyplot.close()
 
 # update image pool for fake images to reduce model oscillation
-# update discriminators using a history of generated images 
-#rather than the ones produced by the latest generators.
-#Original paper recommended keeping an image buffer that stores 
-#the 50 previously created images.
+# update discriminators using a history of generated images rather than the ones produced by the latest generators.
+# Original paper recommended keeping an image buffer that stores the 50 previously created images.
 
 def update_image_pool(pool, images, max_size=50):
 	selected = list()
@@ -269,7 +252,7 @@ def update_image_pool(pool, images, max_size=50):
 			pool[ix] = image
 	return asarray(selected)
 
-# train cyclegan models
+# Defining function to train CycleGan models
 def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset, epochs=1):
 	# define properties of the training run
 	n_epochs, n_batch, = epochs, 1  #batch size fixed to 1 as suggested in the paper
@@ -309,19 +292,19 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_mode
 		dB_loss2 = d_model_B.train_on_batch(X_fakeB, y_fakeB)
 		
         # summarize performance
-        #Since our batch size =1, the number of iterations would be same as the size of our dataset.
-        #In one epoch you'd have iterations equal to the number of images.
-        #If you have 100 images then 1 epoch would be 100 iterations
+        # Since our batch size = 1, the number of iterations would be same as the size of our dataset.
+        # In one epoch you'd have iterations equal to the number of images.
+        # If you have 100 images then 1 epoch would be 100 iterations
 		print('Iteration>%d, dA[%.3f,%.3f] dB[%.3f,%.3f] g[%.3f,%.3f]' % (i+1, dA_loss1,dA_loss2, dB_loss1,dB_loss2, g_loss1,g_loss2))
 		# evaluate the model performance periodically
-        #If batch size (total images)=100, performance will be summarized after every 75th iteration.
+        # If batch size (total images)=100, performance will be summarized after every 75th iteration.
 		if (i+1) % (bat_per_epo * 1) == 0:
 			# plot A->B translation
 			summarize_performance(i, g_model_AtoB, trainA, 'AtoB')
 			# plot B->A translation
 			summarize_performance(i, g_model_BtoA, trainB, 'BtoA')
-		if (i+1) % (bat_per_epo * 5) == 0:
+		if (i+1) % (bat_per_epo * 2) == 0:
 			# save the models
-            # #If batch size (total images)=100, model will be saved after 
-            #every 75th iteration x 5 = 375 iterations.
+            ## If batch size (total images)=100, model will be saved after 
+            # every 100th iteration x 2 = 200th iterations.
 			save_models(i, g_model_AtoB, g_model_BtoA)
