@@ -4,4 +4,6 @@ numpy
 matplotlib
 pandas
 opencv-python
+pandas
+pillow
 tensorrt

@@ -6,7 +6,8 @@ import cv2
 from numpy import asarray
 from numpy import vstack
 from instancenormalization import InstanceNormalization  
-from keras.models import load_model
+from tensorflow.keras.models import load_model
+import keras.backend as K
 from matplotlib import pyplot
 from numpy.random import randint
 from tensorflow.keras.utils import img_to_array
@@ -81,11 +82,16 @@ def example_B_A():
 
 ##########################
 #Load a single custom image
-def life_of_photo(infer_img):  # share path of infering image
-    test_image = load_img(infer_img)
+K.set_image_data_format('channels_last')
+def life_of_photo(infer_image):  # share path of infering image
+    test_image = load_img(infer_image)
     test_image = img_to_array(test_image)
+    print(test_image.shape)
+    if K.image_data_format() == 'channels_first':
+        test_image = np.transpose(test_image, (1, 2, 0))
     test_image_input = np.array([test_image]) 
     test_image_input = (test_image_input - 127.5) / 127.5
+    print(test_image_input.shape)
 
     # plot B->A->B (Photo to Painting to Photo)
     GAN_painting_generated  = model_BtoA.predict(test_image_input)
@@ -93,12 +99,13 @@ def life_of_photo(infer_img):  # share path of infering image
     show_plot(test_image_input, GAN_painting_generated, photo_reconstructed)
 
     generated_img_1 = 0.5 * GAN_painting_generated + 0.5
-    generated_img = array_to_image(generated_img_1[0])
+    print(generated_img_1.shape)
+    generated_img = array_to_img(generated_img_1[0])
     return generated_img
 
 def infer_img(img_path):
     img = cv2.imread(img_path)
-    global test_img_shape
+    global test_img_shape, inp_img
     test_img_shape = img.shape
     if test_img_shape[1] < 256 and test_img_shape[0] < 256:
         inp_img = upscale(img, (256,256))
@@ -109,6 +116,7 @@ def infer_img(img_path):
 
 def infer_new_image(input_image):
     cv2.imwrite("temp.jpg", infer_img(input_image))
+    print('Resized Dimensions : ',inp_img.shape)
     output_image = life_of_photo("./temp.jpg")
     save_path = "generatedImages/" + input_image.split("/")[-1] + "_GAN_generated.jpg"
     output_image.save(save_path)
@@ -119,5 +127,3 @@ def infer_new_image(input_image):
     output_path = "resizedOutput/" + input_image.split("/")[-1] + "_GAN_Resized.jpg"
     cv2.imwrite(output_path, generated_image_resized)
     
-
-

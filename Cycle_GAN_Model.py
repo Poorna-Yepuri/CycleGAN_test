@@ -16,6 +16,7 @@ from numpy import zeros
 from numpy import ones
 from numpy import asarray
 from numpy.random import randint
+import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.initializers import RandomNormal
@@ -53,9 +54,9 @@ def define_discriminator(image_shape):
 	d = LeakyReLU(alpha=0.2)(d)
 	# C512: 4x4 kernel Stride 2x2 
     # Not in the original paper. Comment this block if you want.
-	d = Conv2D(512, (4,4), strides=(2,2), padding='same', kernel_initializer=init)(d)
-	d = InstanceNormalization(axis=-1)(d)
-	d = LeakyReLU(alpha=0.2)(d)
+	# d = Conv2D(512, (4,4), strides=(2,2), padding='same', kernel_initializer=init)(d)
+	# d = InstanceNormalization(axis=-1)(d)
+	# d = LeakyReLU(alpha=0.2)(d)
 	# second last output layer : 4x4 kernel but Stride 1x1
 	d = Conv2D(512, (4,4), padding='same', kernel_initializer=init)(d)
 	d = InstanceNormalization(axis=-1)(d)
@@ -167,15 +168,27 @@ def define_composite_model(g_model_1, d_model, g_model_2, image_shape):
 	return model
 
 # load and prepare training images
-def load_real_samples(filename):
-	# load the dataset
-	data = load(filename)
-	# unpack arrays
-	X1, X2 = data['arr_0'], data['arr_1']
-	# scale from [0,255] to [-1,1]
-	X1 = (X1 - 127.5) / 127.5
-	X2 = (X2 - 127.5) / 127.5
-	return [X1, X2]
+# def load_real_samples(filename):
+# 	# load the dataset
+# 	data = load(filename)
+# 	# unpack arrays
+# 	X1, X2 = data['arr_0'], data['arr_1']
+# 	# scale from [0,255] to [-1,1]
+# 	X1 = (X1 - 127.5) / 127.5
+# 	X2 = (X2 - 127.5) / 127.5
+# 	return [X1, X2]
+
+
+# Saving loss into a CSV
+# Create an empty DataFrame
+loss_df = pd.DataFrame(columns=['iteration', 'dA_loss1', 'dA_loss2', 'dB_loss1', 'dB_loss2', 'g_loss1', 'g_loss2'])
+# Append a row of data to the DataFrame
+def save_loss(steps, dA_loss1, dA_loss2, dB_loss1, dB_loss2, g_loss1, g_loss2):
+	loss_data = pd.DataFrame({'iteration': [steps+1], 'dA_loss1': [dA_loss1], 'dA_loss2': [dA_loss2], 'dB_loss1': [dB_loss1], 'dB_loss2': [dB_loss2], 'g_loss1': [g_loss1], 'g_loss2': [g_loss2]})
+	loss_df = pd.concat([loss_df, loss_data], ignore_index=True)
+	# Display the updated DataFrame
+	print(loss_df)
+	loss_df.to_csv("loss_function.csv", index=False)
 
 # select a batch of random samples, returns images and target
 # Remember that for real images the label (y) is 1. 
@@ -208,7 +221,7 @@ def save_models(step, g_model_AtoB, g_model_BtoA):
 	print('>Saved: %s and %s' % (filename1, filename2))
 
 # periodically generate images using the save model and plot input and output images
-def summarize_performance(step, g_model, trainX, name, n_samples=5):
+def summarize_performance(step, g_model, trainX, name, n_samples=4):
 	# select a sample of input images
 	X_in, _ = generate_real_samples(trainX, n_samples, 0)
 	# generate translated images
@@ -295,7 +308,7 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_mode
         # Since our batch size = 1, the number of iterations would be same as the size of our dataset.
         # In one epoch you'd have iterations equal to the number of images.
         # If you have 100 images then 1 epoch would be 100 iterations
-		print('Iteration>%d, dA[%.3f,%.3f] dB[%.3f,%.3f] g[%.3f,%.3f]' % (i+1, dA_loss1,dA_loss2, dB_loss1,dB_loss2, g_loss1,g_loss2))
+		print('Iteration>%d, dA[%.3f, %.3f] dB[%.3f, %.3f] g[%.3f, %.3f]' % (i+1, dA_loss1, dA_loss2, dB_loss1, dB_loss2, g_loss1, g_loss2))
 		# evaluate the model performance periodically
         # If batch size (total images)=100, performance will be summarized after every 75th iteration.
 		if (i+1) % (bat_per_epo * 1) == 0:
@@ -308,3 +321,7 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_mode
             ## If batch size (total images)=100, model will be saved after 
             # every 100th iteration x 2 = 200th iterations.
 			save_models(i, g_model_AtoB, g_model_BtoA)
+		
+		if (i+1) % (bat_per_epo * 0.5) == 0:
+			# save loss functions
+			save_loss(i, dA_loss1, dA_loss2, dB_loss1, dB_loss2, g_loss1, g_loss2)

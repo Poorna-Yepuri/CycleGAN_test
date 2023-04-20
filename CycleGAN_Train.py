@@ -13,7 +13,7 @@ import numpy as np
 from sklearn.utils import resample
 
 # load all images in a directory into memory
-def load_images(path, size=(1024,1024)):
+def load_images(path, size=(256,256)):
 	data_list = list()
 	# enumerate filenames in directory, assume all are images
 	for filename in listdir(path):
@@ -67,8 +67,8 @@ def preprocess_data(data):
 	# unpack arrays
 	X1, X2 = data[0], data[1]
 	# scale from [0,255] to [-1,1]
-	X1 = (X1 - 512) / 512
-	X2 = (X2 - 512) / 512
+	X1 = (X1 - 127.5) / 127.5
+	X2 = (X2 - 127.5) / 127.5
 	return [X1, X2]
 
 dataset = preprocess_data(data)
