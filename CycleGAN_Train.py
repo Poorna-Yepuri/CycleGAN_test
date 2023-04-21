@@ -13,7 +13,7 @@ import numpy as np
 from sklearn.utils import resample
 
 # load all images in a directory into memory
-def load_images(path, size=(256,256)):
+def load_images(path, size=(512,512)):
 	data_list = list()
 	# enumerate filenames in directory, assume all are images
 	for filename in listdir(path):
@@ -27,16 +27,30 @@ def load_images(path, size=(256,256)):
 
 
 # dataset path
-path = 'Final_Data/'
+path = 'HighRes_Data/'
 
 
 # load dataset A - Monet paintings
-dataA = load_images(path + 'DomainA/')
-print('Loaded DomainA: ', dataA.shape)
+dataA_all = load_images(path + 'DomainA/')
+print('Loaded dataA_all: ', dataA_all.shape)
+
+from sklearn.utils import resample
+# To get a subset of all images, for faster training during demonstration
+dataA = resample(dataA_all, 
+                 replace=False,     
+                 n_samples=1000,    
+                 random_state=8)
+print('Loaded dataA: ', dataA.shape)
 
 # load dataset B - Photos 
-dataB = load_images(path + 'DomainB/')
-print('Loaded DomainB: ', dataB.shape)
+dataB_all = load_images(path + 'DomainB/')
+print('Loaded DomainB: ', dataB_all.shape)
+
+dataB = resample(dataB_all, 
+                 replace=False,     
+                 n_samples=1000,    
+                 random_state=8)
+print('Loaded dataB: ', dataB.shape)
 
 
 # plot source images
@@ -44,12 +58,12 @@ n_samples = 3
 for i in range(n_samples):
 	plt.subplot(2, n_samples, 1 + i)
 	plt.axis('off')
-	plt.imshow(dataA[i].astype('uint8'))
+	plt.imshow(dataA[i+12].astype('uint8'))
 # plot target image
 for i in range(n_samples):
 	plt.subplot(2, n_samples, 1 + n_samples + i)
 	plt.axis('off')
-	plt.imshow(dataB[i].astype('uint8'))
+	plt.imshow(dataB[i+12].astype('uint8'))
 plt.show()
 
 
@@ -66,9 +80,9 @@ def preprocess_data(data):
 	# load compressed arrays
 	# unpack arrays
 	X1, X2 = data[0], data[1]
-	# scale from [0,255] to [-1,1]
-	X1 = (X1 - 127.5) / 127.5
-	X2 = (X2 - 127.5) / 127.5
+	# scale from [0,512] to [-1,1]
+	X1 = (X1 - 256) / 256
+	X2 = (X2 - 256) / 256
 	return [X1, X2]
 
 dataset = preprocess_data(data)
@@ -92,6 +106,7 @@ c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, ima
 from datetime import datetime 
 start1 = datetime.now() 
 # train models
+# loss_df = pd.DataFrame(columns=['iteration', 'dA_loss1', 'dA_loss2', 'dB_loss1', 'dB_loss2', 'g_loss1', 'g_loss2'])
 train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset, epochs=10)
 
 stop1 = datetime.now()

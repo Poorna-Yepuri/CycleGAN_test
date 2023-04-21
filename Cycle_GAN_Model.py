@@ -54,9 +54,9 @@ def define_discriminator(image_shape):
 	d = LeakyReLU(alpha=0.2)(d)
 	# C512: 4x4 kernel Stride 2x2 
     # Not in the original paper. Comment this block if you want.
-	# d = Conv2D(512, (4,4), strides=(2,2), padding='same', kernel_initializer=init)(d)
-	# d = InstanceNormalization(axis=-1)(d)
-	# d = LeakyReLU(alpha=0.2)(d)
+	d = Conv2D(512, (4,4), strides=(2,2), padding='same', kernel_initializer=init)(d)
+	d = InstanceNormalization(axis=-1)(d)
+	d = LeakyReLU(alpha=0.2)(d)
 	# second last output layer : 4x4 kernel but Stride 1x1
 	d = Conv2D(512, (4,4), padding='same', kernel_initializer=init)(d)
 	d = InstanceNormalization(axis=-1)(d)
@@ -118,6 +118,10 @@ def define_generator(image_shape, n_resnet=9):
 	# R256
 	for _ in range(n_resnet):
 		g = resnet_block(256, g)
+	# u256
+	g = Conv2DTranspose(256, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+	g = InstanceNormalization(axis=-1)(g)
+	g = Activation('relu')(g)
 	# u128
 	g = Conv2DTranspose(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
 	g = InstanceNormalization(axis=-1)(g)
@@ -181,9 +185,13 @@ def define_composite_model(g_model_1, d_model, g_model_2, image_shape):
 
 # Saving loss into a CSV
 # Create an empty DataFrame
-loss_df = pd.DataFrame(columns=['iteration', 'dA_loss1', 'dA_loss2', 'dB_loss1', 'dB_loss2', 'g_loss1', 'g_loss2'])
+# loss_df = pd.DataFrame(columns=['iteration', 'dA_loss1', 'dA_loss2', 'dB_loss1', 'dB_loss2', 'g_loss1', 'g_loss2'])
 # Append a row of data to the DataFrame
 def save_loss(steps, dA_loss1, dA_loss2, dB_loss1, dB_loss2, g_loss1, g_loss2):
+	global loss_df
+	print(steps)
+	if (steps+1) == 100:
+		loss_df = pd.DataFrame(columns=['iteration', 'dA_loss1', 'dA_loss2', 'dB_loss1', 'dB_loss2', 'g_loss1', 'g_loss2'])
 	loss_data = pd.DataFrame({'iteration': [steps+1], 'dA_loss1': [dA_loss1], 'dA_loss2': [dA_loss2], 'dB_loss1': [dB_loss1], 'dB_loss2': [dB_loss2], 'g_loss1': [g_loss1], 'g_loss2': [g_loss2]})
 	loss_df = pd.concat([loss_df, loss_data], ignore_index=True)
 	# Display the updated DataFrame
@@ -322,6 +330,6 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_mode
             # every 100th iteration x 2 = 200th iterations.
 			save_models(i, g_model_AtoB, g_model_BtoA)
 		
-		if (i+1) % (bat_per_epo * 0.5) == 0:
-			# save loss functions
-			save_loss(i, dA_loss1, dA_loss2, dB_loss1, dB_loss2, g_loss1, g_loss2)
+		# if (i+1) % (bat_per_epo * 0.5) == 0:
+		# 	# save loss functions
+		# 	save_loss(i, dA_loss1, dA_loss2, dB_loss1, dB_loss2, g_loss1, g_loss2)

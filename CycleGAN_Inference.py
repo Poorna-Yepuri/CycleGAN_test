@@ -90,7 +90,7 @@ def life_of_photo(infer_image):  # share path of infering image
     if K.image_data_format() == 'channels_first':
         test_image = np.transpose(test_image, (1, 2, 0))
     test_image_input = np.array([test_image]) 
-    test_image_input = (test_image_input - 127.5) / 127.5
+    test_image_input = (test_image_input - 256) / 256
     print(test_image_input.shape)
 
     # plot B->A->B (Photo to Painting to Photo)
@@ -107,10 +107,10 @@ def infer_img(img_path):
     img = cv2.imread(img_path)
     global test_img_shape, inp_img
     test_img_shape = img.shape
-    if test_img_shape[1] < 256 and test_img_shape[0] < 256:
-        inp_img = upscale(img, (256,256))
+    if test_img_shape[1] < 512 and test_img_shape[0] < 512:
+        inp_img = upscale(img, (512,512))
     else:
-        inp_img = downsize(img, 256)
+        inp_img = downsize(img, 512)
 
     return inp_img
 
